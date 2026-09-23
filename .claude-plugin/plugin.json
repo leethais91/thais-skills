@@ -1,0 +1,43 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
+  "name": "thais-skills",
+  "version": "1.0.0",
+  "description": "Thai Le's personal skills: Redmine MCP server and Markdown viewer.",
+  "author": { "name": "Thai Le" },
+  "homepage": "https://github.com/leethais91/thais-skills#readme",
+  "repository": "https://github.com/leethais91/thais-skills",
+  "license": "MIT",
+  "keywords": ["redmine", "markdown", "mcp", "skills", "viewer"],
+  "mcpServers": {
+    "redmine": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/redmine/index.js"],
+      "env": {
+        "REDMINE_URL": "${user_config.redmine_url}",
+        "REDMINE_API_KEY": "${user_config.redmine_api_key}",
+        "REDMINE_CONFIG_PATH": "${CLAUDE_PLUGIN_DATA}/config.json"
+      },
+      "env_vars": ["REDMINE_URL", "REDMINE_API_KEY", "REDMINE_CONFIG_PATH"]
+    },
+    "markdown-viewer": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PLUGIN_ROOT}/src/markdown-viewer/server.js"]
+    }
+  },
+  "userConfig": {
+    "redmine_url": {
+      "title": "Redmine URL",
+      "description": "Base URL of your Redmine instance, e.g. https://redmine.example.com",
+      "type": "string",
+      "sensitive": false
+    },
+    "redmine_api_key": {
+      "title": "Redmine API key",
+      "description": "API access key from My Account → API access key",
+      "type": "string",
+      "sensitive": true
+    }
+  }
+}

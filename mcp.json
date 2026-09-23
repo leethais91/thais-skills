@@ -1,0 +1,18 @@
+{
+  "$schema": "https://agent-plugins.org/schemas/1.0.0/mcp.schema.json",
+  "mcpServers": {
+    "redmine": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_DIR}/dist/redmine/index.js"],
+      "env": {
+        "REDMINE_CONFIG_PATH": "${PLUGIN_DATA}/config.json"
+      }
+    },
+    "markdown-viewer": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${PLUGIN_DIR}/src/markdown-viewer/server.js"]
+    }
+  }
+}

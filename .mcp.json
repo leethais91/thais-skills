@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "redmine": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/dist/redmine/index.js"],
+      "env_vars": ["REDMINE_URL", "REDMINE_API_KEY", "REDMINE_CONFIG_PATH"]
+    },
+    "markdown-viewer": {
+      "type": "stdio",
+      "command": "node",
+      "args": ["${CLAUDE_PROJECT_DIR:-.}/src/markdown-viewer/server.js"]
+    }
+  }
+}
