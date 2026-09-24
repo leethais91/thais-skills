@@ -21843,6 +21843,46 @@ function formatIssueTable(issues, columns) {
 ${separator}
 ${rows}`;
 }
+var VERIFIABLE_FIELDS = {
+  status_id: (i) => i.status.id,
+  tracker_id: (i) => i.tracker.id,
+  priority_id: (i) => i.priority.id,
+  assigned_to_id: (i) => i.assigned_to?.id,
+  category_id: (i) => i.category?.id,
+  fixed_version_id: (i) => i.fixed_version?.id,
+  done_ratio: (i) => i.done_ratio
+};
+function expectedValue(sent) {
+  return sent === "" ? void 0 : Number(sent);
+}
+async function explainRejectedStatus(env, issue2) {
+  const reasons = [];
+  const openChildren = await makeApiRequest(env, "/issues.json", "GET", void 0, {
+    parent_id: issue2.id,
+    status_id: "open",
+    limit: MAX_LIMIT
+  });
+  if (openChildren.issues?.length) {
+    const ids = openChildren.issues.map((c) => `#${c.id} [${c.status.name}]`).join(", ");
+    reasons.push(`Open subtasks block closing: ${ids}`);
+  }
+  const blockerIds = (issue2.relations ?? []).filter((r) => r.relation_type === "blocks" && r.issue_to_id === issue2.id || r.relation_type === "blocked" && r.issue_id === issue2.id).map((r) => r.issue_to_id === issue2.id ? r.issue_id : r.issue_to_id);
+  if (blockerIds.length) {
+    const openBlockers = await makeApiRequest(env, "/issues.json", "GET", void 0, {
+      issue_id: blockerIds.join(","),
+      status_id: "open",
+      limit: MAX_LIMIT
+    });
+    if (openBlockers.issues?.length) {
+      const ids = openBlockers.issues.map((b) => `#${b.id} [${b.status.name}]`).join(", ");
+      reasons.push(`Blocked by open issues: ${ids}`);
+    }
+  }
+  if (!reasons.length) {
+    reasons.push("The workflow does not allow this transition for your role from the current status (e.g. an intermediate status such as Resolved may be required).");
+  }
+  return reasons;
+}
 function registerIssueTools(server, env, userContext = "") {
   server.registerTool(
     "redmine_list_issues",
@@ -22109,7 +22149,9 @@ Args:
   - estimated_hours: Update estimate
   - category_id / fixed_version_id: Update category or version
 
-Returns: Confirmation of update.`,
+Returns: The issue as it is after the update. Redmine silently ignores values it
+will not accept (e.g. closing an issue with open subtasks), so the tool reads the
+issue back and lists every field that did not change, with the likely reason.`,
       inputSchema: {
         issue_id: external_exports.union([external_exports.number().int().positive(), external_exports.string().regex(/^\d+$/).transform(Number)]).describe("Issue ID to update"),
         subject: external_exports.string().optional().describe("New subject"),
@@ -22158,14 +22200,55 @@ Returns: Confirmation of update.`,
         if (params.done_ratio != null) issueData.done_ratio = params.done_ratio;
         if (params.custom_fields != null) issueData.custom_fields = params.custom_fields;
         await makeApiRequest(env, `/issues/${params.issue_id}.json`, "PUT", { issue: issueData });
-        const fields = Object.keys(issueData);
-        return {
-          content: [{
-            type: "text",
-            text: `Issue #${params.issue_id} updated successfully.
-Fields changed: ${fields.join(", ")}`
-          }]
-        };
+        let issue2;
+        try {
+          ({ issue: issue2 } = await makeApiRequest(
+            env,
+            `/issues/${params.issue_id}.json`,
+            "GET",
+            void 0,
+            { include: "relations" }
+          ));
+        } catch (readError) {
+          return {
+            content: [{
+              type: "text",
+              text: `Redmine accepted the update of #${params.issue_id}, but reading it back failed, so the change is NOT verified: ${handleApiError(readError)}
+Check with redmine_get_issue before reporting success.`
+            }]
+          };
+        }
+        const rejected = [];
+        for (const [field, read] of Object.entries(VERIFIABLE_FIELDS)) {
+          if (!(field in issueData)) continue;
+          if (read(issue2) !== expectedValue(issueData[field])) {
+            rejected.push(`${field} (sent ${issueData[field] === "" ? "unassign" : issueData[field]})`);
+          }
+        }
+        const state = `Now: status "${issue2.status.name}", assignee ${issue2.assigned_to?.name ?? "none"}, ${issue2.done_ratio}% done.`;
+        if (!rejected.length) {
+          return {
+            content: [{
+              type: "text",
+              text: `Issue #${issue2.id} updated and verified.
+Fields sent: ${Object.keys(issueData).join(", ")}
+${state}`
+            }]
+          };
+        }
+        const lines = [
+          `WARNING: Issue #${issue2.id} was NOT fully updated. Redmine accepted the request but ignored: ${rejected.join(", ")}.`,
+          state
+        ];
+        if ("status_id" in issueData && rejected.some((f) => f.startsWith("status_id"))) {
+          try {
+            lines.push("Likely reason:", ...(await explainRejectedStatus(env, issue2)).map((r) => `- ${r}`));
+          } catch (lookupError) {
+            lines.push(`Could not look up the reason: ${handleApiError(lookupError)}`);
+          }
+        }
+        if (issueData.notes != null) lines.push("The note was saved.");
+        return { content: [{ type: "text", text: lines.join("\n") }] };
       } catch (error2) {
         return { content: [{ type: "text", text: handleApiError(error2) }] };
       }

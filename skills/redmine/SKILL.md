@@ -195,7 +195,7 @@ the upload instead.
 
 1. `redmine_list_statuses` — discover available statuses (don't assume IDs)
 2. `redmine_update_issue(issue_id, status_id=X, notes="reason")` — always include note
-3. Verify by fetching issue again
+3. Read the tool result: it re-reads the issue and starts with `WARNING: ... was NOT fully updated` when Redmine ignored a value. Never report a close/status change as done when that warning appears — relay the listed reason and the blocking issues instead
 
 ### My Work View
 
@@ -247,8 +247,11 @@ Exception: a saved `contentLanguage` preference (see Personalization) replaces E
 
 ## Known Redmine Behaviors
 
-- A parent cannot be closed while children are open — see Close Issue Workflow
-- Allowed status transitions depend on role/workflow; a 422 on status change usually means the transition is not allowed — check it in the web UI
+- **A refused status change is silent.** Redmine answers 204 and saves the other fields and the note, but keeps the old status when:
+  - the issue has open subtasks (closing only) — see Close Issue Workflow
+  - the issue is blocked by an open issue (closing only)
+  - the role workflow does not allow that transition from the current status (e.g. Resolved is required before Closed)
+- `redmine_update_issue` detects this by reading the issue back and names the open subtasks/blockers it finds
 
 ## Output Format
 
