@@ -23561,7 +23561,7 @@ function registerPreferenceTools(server, env) {
 function createServer(env, userState = { preferences: {} }) {
   const server = new McpServer({
     name: "redmine",
-    version: "0.0.1"
+    version: "0.0.3"
   });
   const userContext = describeUserContext(userState);
   registerIssueTools(server, env, userContext);

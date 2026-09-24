@@ -1,6 +1,6 @@
 {
   "name": "thais-skills",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "description": "Agent plugin with Redmine tools and an offline InkyMD Markdown reader.",
   "type": "module",
   "bin": {

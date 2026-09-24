@@ -14645,7 +14645,7 @@ async function ensureHttpServer() {
   return httpPort;
 }
 var server = new Server(
-  { name: "markdown-viewer", version: "0.0.1" },
+  { name: "markdown-viewer", version: "0.0.3" },
   { capabilities: { tools: {} } }
 );
 server.setRequestHandler(ListToolsRequestSchema, async () => ({

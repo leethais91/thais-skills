@@ -517,7 +517,7 @@ async function ensureHttpServer() {
 // ---------------------------------------------------------------------------
 
 const server = new Server(
-  { name: "markdown-viewer", version: "0.0.1" },
+  { name: "markdown-viewer", version: "0.0.3" },
   { capabilities: { tools: {} } },
 );
 
