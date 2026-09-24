@@ -1,7 +1,7 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "thais-skills",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "Thai Le's personal skills: Redmine MCP server and the packaged InkyMD Markdown reader.",
   "author": {
     "name": "Thai Le"

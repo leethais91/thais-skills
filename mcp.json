@@ -4,7 +4,7 @@
     "redmine": {
       "type": "stdio",
       "command": "node",
-      "args": ["${PLUGIN_DIR}/server/redmine.js"],
+      "args": ["${PLUGIN_ROOT}/server/redmine.js"],
       "env": {
         "REDMINE_CONFIG_PATH": "${PLUGIN_DATA}/config.json"
       }
@@ -12,7 +12,7 @@
     "markdown-viewer": {
       "type": "stdio",
       "command": "node",
-      "args": ["${PLUGIN_DIR}/server/markdown-viewer.js"]
+      "args": ["${PLUGIN_ROOT}/server/markdown-viewer.js"]
     }
   }
 }

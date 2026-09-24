@@ -11,14 +11,33 @@ On first enable Claude prompts for `redmine_url` and `redmine_api_key`. The
 API key is stored in the OS keychain. Either prompt may be skipped; the
 server also reads the environment variables and config file described below.
 
-## Codex and other Agent Plugins hosts
+## Codex
 
-Add this repository as a plugin source in your host. Codex reads
-`.codex-plugin/plugin.json`; Agent Plugins hosts (such as OMP) read
-`.agents/plugins/marketplace.json` and `mcp.json`.
+Install from the repository marketplace with Codex CLI:
 
-These hosts do not prompt for credentials. Set `REDMINE_URL` and
-`REDMINE_API_KEY` in the environment that launches the host.
+```bash
+codex plugin marketplace add leethais91/thais-skills
+codex plugin list --marketplace leethais91 --available
+codex plugin add thais-skills@leethais91
+```
+
+Start a new Codex session after installation. If `leethais91` is already
+registered for another repository, check its source with
+`codex plugin marketplace list`, then remove that marketplace with
+`codex plugin marketplace remove leethais91` before adding this repository.
+
+Codex reads the root `plugin.json`, discovers the skills in `skills/`, and
+loads the MCP servers from the root `mcp.json`. The `.codex-plugin/plugin.json`
+file remains as a compatibility fallback.
+
+Codex does not prompt for Redmine credentials. Set `REDMINE_URL` and
+`REDMINE_API_KEY` in the environment that launches Codex, or use the config
+file below.
+
+## Other Agent Plugins hosts
+
+Add this repository as a plugin source using your host's installation flow.
+The portable package is described by `plugin.json`, `skills/`, and `mcp.json`.
 
 ## Redmine credentials
 
@@ -26,7 +45,8 @@ The Redmine server resolves credentials in this order:
 
 1. **Environment variables** `REDMINE_URL`, `REDMINE_API_KEY`
 2. **JSON config file** at `REDMINE_CONFIG_PATH`, or the standard location
-   `$XDG_CONFIG_HOME/redmine-mcp-server/config.json`
+   `$XDG_CONFIG_HOME/redmine-mcp/config.json` (or
+   `~/.config/redmine-mcp/config.json` when `XDG_CONFIG_HOME` is unset)
 
 Get your API key from Redmine under **My account → API access key**.
 

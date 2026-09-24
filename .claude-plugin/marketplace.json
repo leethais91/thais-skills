@@ -11,7 +11,7 @@
       "name": "thais-skills",
       "source": "./",
       "description": "Redmine MCP tools and an offline InkyMD Markdown reader.",
-      "version": "0.0.1",
+      "version": "0.0.2",
       "category": "productivity",
       "keywords": ["redmine", "markdown", "mcp", "viewer"]
     }

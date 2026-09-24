@@ -22,12 +22,21 @@ On first enable Claude asks for your Redmine URL and API key. The key is
 stored in the OS keychain. Both prompts can be skipped if you set credentials
 another way (see below).
 
-### Codex and other Agent Plugins hosts
+### Codex
 
-Add this repository as a plugin source in your host. The plugin ships
-`.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json` and `mcp.json`.
-These hosts do not prompt for credentials; set `REDMINE_URL` and
-`REDMINE_API_KEY` in the environment that launches the host.
+```bash
+codex plugin marketplace add leethais91/thais-skills
+codex plugin add thais-skills@leethais91
+```
+
+Start a new Codex session. Codex does not prompt for Redmine credentials; set
+`REDMINE_URL` and `REDMINE_API_KEY` in the environment that launches Codex, or
+use the config file described in the installation guide.
+
+### Other Agent Plugins hosts
+
+Add this repository as a plugin source using your host's installation flow.
+The portable package includes `plugin.json`, `skills/`, and `mcp.json`.
 
 See [`docs/installation.md`](docs/installation.md) for credentials and
 verification.
