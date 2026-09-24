@@ -33,6 +33,16 @@ Start a new Codex session. Codex does not prompt for Redmine credentials; set
 `REDMINE_URL` and `REDMINE_API_KEY` in the environment that launches Codex, or
 use the config file described in the installation guide.
 
+### OMP (Oh My Pi)
+
+```bash
+omp plugin marketplace add leethais91/thais-skills
+omp plugin install thais-skills@leethais91
+```
+
+Start a new OMP session after installation. Set Redmine credentials in the
+environment that launches OMP, or use the config file described below.
+
 ### Other Agent Plugins hosts
 
 Add this repository as a plugin source using your host's installation flow.

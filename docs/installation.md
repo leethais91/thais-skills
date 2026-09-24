@@ -34,6 +34,26 @@ Codex does not prompt for Redmine credentials. Set `REDMINE_URL` and
 `REDMINE_API_KEY` in the environment that launches Codex, or use the config
 file below.
 
+## OMP (Oh My Pi)
+
+OMP reads this repository's `.claude-plugin/marketplace.json` catalog. Install
+the plugin from GitHub with:
+
+```bash
+omp plugin marketplace add leethais91/thais-skills
+omp plugin discover leethais91
+omp plugin install thais-skills@leethais91
+omp plugin list
+```
+
+Start a new OMP session after installation. In an open OMP session, run
+`/reload-plugins` to refresh skills and MCP servers. If the plugin is already
+installed, refresh the catalog with `omp plugin marketplace update leethais91`
+and then run `omp plugin upgrade thais-skills@leethais91`.
+
+Set `REDMINE_URL` and `REDMINE_API_KEY` in the environment that launches OMP,
+or use the config file below.
+
 ## Other Agent Plugins hosts
 
 Add this repository as a plugin source using your host's installation flow.
