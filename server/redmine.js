@@ -22113,21 +22113,21 @@ Returns: Confirmation of update.`,
       inputSchema: {
         issue_id: external_exports.union([external_exports.number().int().positive(), external_exports.string().regex(/^\d+$/).transform(Number)]).describe("Issue ID to update"),
         subject: external_exports.string().optional().describe("New subject"),
-        tracker_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New tracker ID"),
-        status_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New status ID"),
-        priority_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New priority ID"),
-        assigned_to_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New assignee ID (0 to unassign)"),
+        tracker_id: external_exports.coerce.number().optional().describe("New tracker ID"),
+        status_id: external_exports.coerce.number().optional().describe("New status ID"),
+        priority_id: external_exports.coerce.number().optional().describe("New priority ID"),
+        assigned_to_id: external_exports.coerce.number().optional().describe("New assignee user ID (0 to unassign)"),
         description: external_exports.string().optional().describe("New description"),
         notes: external_exports.string().optional().describe("Add a comment/note"),
-        category_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New category ID"),
-        fixed_version_id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New version ID"),
+        category_id: external_exports.coerce.number().optional().describe("New category ID"),
+        fixed_version_id: external_exports.coerce.number().optional().describe("New version ID"),
         start_date: external_exports.string().optional().describe("New start date (YYYY-MM-DD)"),
         due_date: external_exports.string().optional().describe("New due date (YYYY-MM-DD)"),
-        estimated_hours: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).optional().describe("New estimated hours"),
-        done_ratio: external_exports.union([external_exports.number().int().min(0).max(100), external_exports.string().transform(Number)]).optional().describe("New % done"),
+        estimated_hours: external_exports.coerce.number().optional().describe("New estimated hours"),
+        done_ratio: external_exports.coerce.number().int().min(0).max(100).optional().describe("New % done"),
         custom_fields: external_exports.union([
           external_exports.array(external_exports.object({
-            id: external_exports.union([external_exports.number(), external_exports.string().transform(Number)]).describe("Custom field ID"),
+            id: external_exports.coerce.number().describe("Custom field ID"),
             value: external_exports.union([external_exports.string(), external_exports.number(), external_exports.array(external_exports.string())]).describe("Custom field value")
           })),
           external_exports.string().transform((s) => JSON.parse(s))
@@ -22147,7 +22147,7 @@ Returns: Confirmation of update.`,
         if (params.tracker_id != null) issueData.tracker_id = params.tracker_id;
         if (params.status_id != null) issueData.status_id = params.status_id;
         if (params.priority_id != null) issueData.priority_id = params.priority_id;
-        if (params.assigned_to_id != null) issueData.assigned_to_id = params.assigned_to_id;
+        if (params.assigned_to_id != null) issueData.assigned_to_id = params.assigned_to_id === 0 ? "" : params.assigned_to_id;
         if (params.description != null) issueData.description = params.description;
         if (params.notes != null) issueData.notes = params.notes;
         if (params.category_id != null) issueData.category_id = params.category_id;
