@@ -24,7 +24,7 @@ export function createServer(env: RedmineEnv, userState: UserState = { preferenc
   // matches the package.json + plugin manifests lockstep per upstream AGENTS.md.
   const server = new McpServer({
     name: "redmine",
-    version: "1.0.0",
+    version: "0.0.1",
   });
 
   const userContext = describeUserContext(userState);

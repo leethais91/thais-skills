@@ -1,0 +1,19 @@
+{
+  "name": "leethais91",
+  "owner": {
+    "name": "Thai Le"
+  },
+  "metadata": {
+    "description": "Thai Le's agent plugins."
+  },
+  "plugins": [
+    {
+      "name": "thais-skills",
+      "source": "./",
+      "description": "Redmine MCP tools and an offline InkyMD Markdown reader.",
+      "version": "0.0.1",
+      "category": "productivity",
+      "keywords": ["redmine", "markdown", "mcp", "viewer"]
+    }
+  ]
+}

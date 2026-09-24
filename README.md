@@ -1,79 +1,67 @@
 # thais-skills
 
-Personal skills repository — exposes one Claude/Codex/OMP agent plugin called
-`thais-skills`. The plugin currently bundles two skills:
+An agent plugin with two skills:
 
-1. **Redmine** — a local port of the `@leethais91/redmine-mcp-server` tool set
-   (issue tracking, time logging, projects, attachments, lookups). Built from
-   `src/redmine/` and exposed via stdio.
-2. **Markdown viewer** — an Inky-styled preview server (`serve_markdown_preview`
-   + `render_markdown_inline`) that renders `.md` files locally in the browser.
+1. **Redmine** — issue tracking, time logging, projects, attachments and
+   lookups against your Redmine instance, exposed as MCP tools.
+2. **Markdown viewer** — one MCP tool (`serve_markdown_preview`) that opens a
+   `.md` file in the InkyMD reader in your browser: themes, fonts, code
+   highlighting, Mermaid/D2 diagrams, outline and reading progress. The reader
+   ships inside the plugin and runs fully offline from localhost.
 
-## Layout
+## Install
+
+### Claude Code
 
 ```
-src/
-  redmine/         Copy of redmine-mcp-server source (TypeScript, built via tsc)
-  markdown-viewer/ Plain JS server that speaks MCP stdio + hosts an HTTP preview
-skills/
-  redmine/         Redmine skill description for the agent
-  markdown-viewer/ Markdown-viewer skill description for the agent
-tests/
-  viewer.smoke.mjs E2E smoke for the markdown-viewer (spawns the real MCP server)
-fixtures/
-  sample.md        Optional scratch markdown (gitignored; tests generate their own)
-.claude-plugin/
-  plugin.json       Claude plugin MCP config (paths relative to plugin root)
-.codex-plugin/
-  plugin.json
-.agents/plugins/
-  marketplace.json
-.mcp.json          Claude project MCP config (paths relative to project root)
-mcp.json           Agent-Plugins MCP config (uses ${PLUGIN_DATA})
-package.json       @modelcontextprotocol/sdk + marked + isomorphic-dompurify + zod
-tsconfig.json      Builds src/redmine/ → dist/redmine/
+/plugin marketplace add leethais91/thais-skills
+/plugin install thais-skills@leethais91
 ```
 
-## Build
+On first enable Claude asks for your Redmine URL and API key. The key is
+stored in the OS keychain. Both prompts can be skipped if you set credentials
+another way (see below).
+
+### Codex and other Agent Plugins hosts
+
+Add this repository as a plugin source in your host. The plugin ships
+`.codex-plugin/plugin.json`, `.agents/plugins/marketplace.json` and `mcp.json`.
+These hosts do not prompt for credentials; set `REDMINE_URL` and
+`REDMINE_API_KEY` in the environment that launches the host.
+
+See [`docs/installation.md`](docs/installation.md) for credentials and
+verification.
+
+## Requirements
+
+- Node.js 18+
+- A Redmine instance with the REST API enabled (Redmine skill only)
+
+The Markdown viewer needs no credentials and no network access.
+
+## Skills
+
+| Skill | MCP server | Tools |
+| --- | --- | --- |
+| `redmine` | `redmine` | `redmine_*` — issues, notes, time entries, projects, users, attachments, lookups |
+| `markdown-viewer` | `markdown-viewer` | `serve_markdown_preview` |
+
+## Development
 
 ```bash
 npm install
-npm run build         # tsc → dist/redmine/
+npm run build        # typecheck, then bundle each MCP server into server/
+npm run test:viewer  # end-to-end smoke test for the Markdown viewer bundle
 ```
 
-The redmine server is built, the markdown viewer is plain JS and runs from
-`src/`. The HTTP server started by the viewer keeps running for the lifetime
-of the MCP session.
+The plugin runs straight from git with no `npm install`, so the bundles in
+`server/` are committed. Rebuild and commit them after changing `src/`.
 
-## Installing into a host
+The reader bundle in `src/markdown-viewer/reader/` is generated from the
+InkyMD source repository and committed as-is. Its `manifest.json` pins the
+source revision and hashes every file; the server refuses to serve a missing
+or modified bundle.
 
-To use both MCP servers in a different Claude Code project, build this
-repository first (`npm install && npm run build`), then launch Claude from
-the other project with the plugin directory:
+## License
 
-```bash
-cd /path/to/another-project
-claude --plugin-dir /Users/thaile/PROJECTS/THAILE/thais-skills
-```
-
-Use the same flag each time you start a session; it is not a permanent
-installation. To check both plugin MCP connections from that project:
-
-```bash
-claude --plugin-dir /Users/thaile/PROJECTS/THAILE/thais-skills mcp list
-```
-
-Look for `plugin:thais-skills:redmine` and
-`plugin:thais-skills:markdown-viewer` marked `Connected`. Do not copy the
-project-scoped `.mcp.json` into the other project. For Redmine operations,
-provide credentials through plugin configuration, environment variables,
-or the `--init` flow; the Markdown viewer needs none.
-
-Run the viewer smoke test after building:
-
-```bash
-node tests/viewer.smoke.mjs
-```
-
-Per-host install steps (Claude Code, Codex, OMP) live in
-[`docs/installation.md`](docs/installation.md).
+MIT

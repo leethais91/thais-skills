@@ -1,26 +1,29 @@
 {
   "name": "thais-skills",
-  "version": "1.0.0",
-  "description": "Personal skills repository — Redmine MCP server and Markdown viewer.",
+  "version": "0.0.1",
+  "description": "Agent plugin with Redmine tools and an offline InkyMD Markdown reader.",
   "type": "module",
   "bin": {
-    "redmine": "dist/redmine/index.js",
-    "markdown-viewer": "src/markdown-viewer/server.js"
+    "redmine": "server/redmine.js",
+    "markdown-viewer": "server/markdown-viewer.js"
+  },
+  "engines": {
+    "node": ">=18"
   },
   "scripts": {
-    "build": "tsc",
-    "build:redmine": "tsc",
-    "start:redmine": "node dist/redmine/index.js",
-    "start:viewer": "node src/markdown-viewer/server.js"
+    "build": "tsc --noEmit && node scripts/build-bundles.mjs",
+    "typecheck": "tsc --noEmit",
+    "start:redmine": "node server/redmine.js",
+    "start:viewer": "node server/markdown-viewer.js",
+    "test:viewer": "node tests/viewer.smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
-    "isomorphic-dompurify": "^2.16.0",
-    "marked": "^14.1.0",
     "zod": "^3.23.8"
   },
   "devDependencies": {
     "@types/node": "^22.10.0",
+    "esbuild": "^0.28.2",
     "typescript": "^5.7.2"
   }
 }

@@ -1,29 +1,45 @@
 {
   "$schema": "https://agent-plugins.org/schemas/1.0.0/plugin.schema.json",
   "name": "thais-skills",
-  "version": "1.0.0",
-  "description": "Thai Le's personal skills: Redmine MCP server and Markdown viewer.",
-  "author": { "name": "Thai Le" },
+  "version": "0.0.1",
+  "description": "Thai Le's personal skills: Redmine MCP server and the packaged InkyMD Markdown reader.",
+  "author": {
+    "name": "Thai Le"
+  },
   "homepage": "https://github.com/leethais91/thais-skills#readme",
   "repository": "https://github.com/leethais91/thais-skills",
   "license": "MIT",
-  "keywords": ["redmine", "markdown", "mcp", "skills", "viewer"],
+  "keywords": [
+    "redmine",
+    "markdown",
+    "mcp",
+    "skills",
+    "viewer"
+  ],
   "mcpServers": {
     "redmine": {
       "type": "stdio",
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/redmine/index.js"],
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/redmine.js"
+      ],
       "env": {
         "REDMINE_URL": "${user_config.redmine_url}",
         "REDMINE_API_KEY": "${user_config.redmine_api_key}",
         "REDMINE_CONFIG_PATH": "${CLAUDE_PLUGIN_DATA}/config.json"
       },
-      "env_vars": ["REDMINE_URL", "REDMINE_API_KEY", "REDMINE_CONFIG_PATH"]
+      "env_vars": [
+        "REDMINE_URL",
+        "REDMINE_API_KEY",
+        "REDMINE_CONFIG_PATH"
+      ]
     },
     "markdown-viewer": {
       "type": "stdio",
       "command": "node",
-      "args": ["${CLAUDE_PLUGIN_ROOT}/src/markdown-viewer/server.js"]
+      "args": [
+        "${CLAUDE_PLUGIN_ROOT}/server/markdown-viewer.js"
+      ]
     }
   },
   "userConfig": {

@@ -1,25 +1,27 @@
 ---
 name: markdown-viewer
 description: |
-  Render Markdown in an Inky-styled web preview so the user can read
-  reports, plans, and other long-form output in a browser tab. Load this
-  skill whenever the agent has produced or is about to produce a markdown
-  file (`.md`) or a substantial markdown answer that the user is likely to
-  review.
+  Render Markdown in an InkyMD reader in a browser tab so the user can read
+  reports, plans, and other long-form output properly — frontmatter, code
+  highlighting, Mermaid and D2 diagrams, themes, outline, reading progress and
+  a diagram lightbox, all served offline from localhost. Load this skill
+  whenever the agent has produced or is about to produce a markdown file
+  (`.md`) or a substantial markdown answer that the user is likely to review.
 ---
 
 # Markdown viewer skill
 
-The `markdown-viewer` MCP server provides two tools:
+The `markdown-viewer` MCP server provides one tool:
 
 | Tool | Input | Output |
 | --- | --- | --- |
-| `serve_markdown_preview` | `{ path }` (absolute path to a `.md` file) | A clickable `http://localhost:<port>/?path=...` URL the user opens in a browser. |
-| `render_markdown_inline` | `{ content, title? }` (raw markdown) | The full styled HTML inline — useful when there's no file to point at yet. |
+| `serve_markdown_preview` | `{ path, title? }` (absolute path to a `.md` file; `title` overrides the displayed document name) | A clickable `http://127.0.0.1:<port>/p/<token>/<dir>/` URL that opens the document in the bundled InkyMD reader. |
 
-Both tools share a single background HTTP server scoped to the MCP session.
-Reuse the URL returned by `serve_markdown_preview` across calls — no need to
-rebuild.
+The tool returns one URL per call. A single background HTTP server is scoped
+to the MCP session and reused, so additional previews share the port.
+
+There is no inline-HTML mode: write the Markdown to a file and call
+`serve_markdown_preview`.
 
 ## When to call it
 
@@ -36,27 +38,45 @@ opening a browser is overhead the user didn't ask for.
 
 ## Workflow
 
-1. Write the content to a file when the content will outlive the session
-   (plans, reports). Use `write` from the host toolset.
+1. Write the content to a file (plans, reports) with the host's `write` tool.
 2. Call `serve_markdown_preview` with the absolute path.
-3. Hand the returned URL to the user. Tell them to keep the browser tab open;
-   future previews on the same session reuse the port.
-
-For ephemeral markdown that won't be saved, call `render_markdown_inline`
-and embed the rendered HTML directly in your reply — the skill returns both a
-short status line and the full HTML.
+3. Hand the returned URL to the user. The page re-reads the file on every
+   load: editing the Markdown and pressing F5 shows the new content, with no
+   MCP call and no rebuild.
 
 ## Conventions
 
-- **Style**: the viewer uses the InkyMD Editorial theme (paper background,
-  Fraunces headings, Literata body, JetBrains Mono code, accent #a83a24) —
-  the same look as `inkymd.pages.dev`.
-- **Editor**: the server embeds the markdown server-side via `marked` with
-  GitHub-Flavored Markdown enabled. No client-side fetch is required.
-- **Paths**: must be absolute. The viewer reads the file at request time, so
-  reloading the browser tab picks up edits.
-- **Safety**: the HTTP server binds to `127.0.0.1` only and is owned by the
-  MCP session. It is not reachable from other machines.
+- **Rendering**: the preview is InkyMD's own reader — the same components,
+  styles, fonts, and diagram pipeline as the InkyMD Zen mode. Markdown is
+  rendered in the browser (markdown-it with GFM, footnotes, task lists and
+  anchor links), code is highlighted with Shiki, and `mermaid` / `d2` fenced
+  blocks become SVG diagrams that re-theme with the page.
+- **Offline**: the reader is a prebuilt bundle shipped inside the plugin.
+  JS, CSS, fonts, diagram engines and D2 WASM all come from localhost — no
+  CDN, cloud API or telemetry.
+- **Reading controls**: the floating dock adjusts text size, toggles
+  full-width layout, and switches theme; it hides itself on that last button
+  and `Esc` brings it back (there is no editor to return to). The right-edge
+  outline jumps between sections, a bottom rule tracks reading position, and
+  clicking a diagram opens a zoom/pan lightbox with SVG/PNG export. `Esc`
+  closes the lightbox or the outline before it touches the chrome.
+- **Paths**: `path` must be an absolute path to a Markdown file.
+- **Links**: a Markdown link to another Markdown file inside the same project
+  root opens that file in the reader, so a plan can be followed straight into
+  its sub-plans (`Ctrl`/`Cmd`-click and new-tab work too). Relative links
+  resolve against the document's own folder, and `./phase-01.md#goal` lands on
+  the heading.
+- **Images**: relative images resolve inside the document's project root (the
+  git root of the file, otherwise its own folder), so `./images/a.png` and
+  `../shared.png` both work from a nested document. Files outside that root,
+  symlinks pointing out of it, and files that are neither images nor Markdown
+  are refused — a document cannot link its way to a source file or a secret.
+- **Safety**: the HTTP server binds `127.0.0.1` only and is owned by the MCP
+  session. Each preview gets its own unguessable token in the URL; the token
+  grants that one document, plus Markdown documents and images inside that
+  document's project root, and nothing else. The page is served with a
+  restrictive CSP (`default-src 'none'`, same-origin scripts/styles/fonts/
+  images only).
 
 ## When NOT to use
 
