@@ -16,8 +16,8 @@ WORK_DAYS: from saved preferences (timesheet.workDays) — default Mon–Fri
 
 | Command                            | Scope                       |
 | ---------------------------------- | --------------------------- |
-| "log this week" / "fill this week" | Current week (Mon–Fri)      |
-| "log last week"                    | Previous week (Mon–Fri)     |
+| "log this week" / "fill this week" | Current week (WORK_DAYS)    |
+| "log last week"                    | Previous week (WORK_DAYS)   |
 | "log this month"                   | Current month working days  |
 | "log last month"                   | Previous month working days |
 | "log today"                        | Today only                  |
@@ -28,7 +28,7 @@ WORK_DAYS: from saved preferences (timesheet.workDays) — default Mon–Fri
 ### Step 1: Parse scope and working days
 
 - Determine date range from user input
-- Generate list of working days (exclude Sat/Sun)
+- Generate list of working days (keep only WORK_DAYS)
 - Ask user about holidays in that period:
   - Weekly mode: "Any holidays/days off this week?"
   - Monthly mode: "Any holidays/days off this month?"
@@ -40,16 +40,20 @@ WORK_DAYS: from saved preferences (timesheet.workDays) — default Mon–Fri
 redmine_list_time_entries(user_id="me", from=START, to=END, limit=100)
 ```
 
+- If the result says "More available. Use offset: N", call again with that offset until all entries are fetched (a month can exceed 100)
 - Group by date → calculate hours already logged per day
-- Skip days already >= TARGET (8h)
+- Skip days already >= TARGET_HOURS_PER_DAY
 
 ### Step 3: Fetch involved tickets
 
-Gather candidate issues — use **author** (not assignee, user is PM with too many assigned tickets):
+Gather candidate issues from both sides — the user's own tickets and the ones they created:
 
 ```
+redmine_list_issues(assigned_to_id="me", status_id="open", sort="updated_on:desc", limit=15)
 redmine_list_issues(author_id="me", status_id="open", sort="updated_on:desc", limit=15)
 ```
+
+If one list is noisy (e.g. a PM with many assigned tickets), keep the most recently updated ones and let Step 3b trim the rest.
 
 Also extract unique issue IDs from existing time entries in Step 2.
 
@@ -97,11 +101,11 @@ Hours auto-split equally if not specified. Remaining → management issue.
 **Processing rules:**
 
 1. Parse user assignments → map ticket × day × hours
-2. For each day: `remaining = 8h - existing_logged - assigned_hours`
+2. For each day: `remaining = TARGET_HOURS_PER_DAY - existing_logged - assigned_hours`
 3. If remaining > 0 → fill with management issue
 4. If remaining <= 0 → done for that day
 5. Round to nearest 0.5h, minimum entry: 0.5h
-6. Days with no assignment and no existing logs → all 8h to management issue
+6. Days with no assignment and no existing logs → all TARGET_HOURS_PER_DAY to management issue
 
 ### Step 6: Generate smart comments
 
@@ -129,7 +133,7 @@ Mar 16 Mon | #1234 Login feature      |  2.5h | Login bug fix and testing
 Mar 17 Tue | #1234 Login feature      |  2.5h | Login implementation
            | #9999 Mgmt               |  2.5h | Team management
 ---------- | ------------------------ | ----- | ---------------------------
-Mar 18 Wed | full (8h)                |     - |
+Mar 18 Wed | full (8h target)         |     - |
 ---------- | ------------------------ | ----- | ---------------------------
 Mar 19 Thu | #1234 Login feature      |  4.0h | Login feature development
            | #9999 Mgmt               |  4.0h | Team management
@@ -162,16 +166,11 @@ Done. Logged 27h across 4 days (11 entries).
 
 ## Skip & Safety Rules
 
-- Day >= 8h logged → skip entirely
-- Same issue+date already logged → skip (no duplicate)
-- Day > 10h after fill → warning before confirm
-- Never overwrite existing entries
+- Day already >= TARGET_HOURS_PER_DAY → skip entirely
+- Day would exceed TARGET_HOURS_PER_DAY after fill → warn in the preview before confirm
+- Same issue already logged on the same date → do not add it silently; show the existing entry in the preview and log extra hours only if the user assigned them explicitly in Step 5
+- Never overwrite or update existing entries
 - Never auto-confirm — always require explicit user approval
-
-## Conflict Detection
-
-- Never exceed 8h/day — if existing logs already >= 8h, skip that day entirely
-- If same issue already logged on same date → show existing entry, skip (no duplicate)
 
 ## Natural Language Shortcuts
 
