@@ -71,6 +71,7 @@ The Markdown viewer needs no credentials and no network access.
 npm install
 npm run build        # typecheck, then bundle each MCP server into server/
 npm run test:viewer  # end-to-end smoke test for the Markdown viewer bundle
+npm run test:redmine # Redmine MCP bundle against a local fake Redmine (never a real instance)
 ```
 
 The plugin runs straight from git with no `npm install`, so the bundles in

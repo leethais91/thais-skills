@@ -15,7 +15,8 @@
     "typecheck": "tsc --noEmit",
     "start:redmine": "node server/redmine.js",
     "start:viewer": "node server/markdown-viewer.js",
-    "test:viewer": "node tests/viewer.smoke.mjs"
+    "test:viewer": "node tests/viewer.smoke.mjs",
+    "test:redmine": "node tests/redmine.smoke.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.30.0",
