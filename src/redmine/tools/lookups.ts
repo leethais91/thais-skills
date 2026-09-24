@@ -327,6 +327,55 @@ Returns: Table of activity IDs and names.`,
     }
   );
 
+  // List saved issue queries
+  server.registerTool(
+    "redmine_list_queries",
+    {
+      title: "List Redmine Saved Queries",
+      description: `List the saved issue queries visible to you (public ones and your own).
+Pass a query's ID as query_id to redmine_list_issues to reuse its filters; for a
+project query also pass its project_id.
+
+Returns: Table of query IDs, names, visibility and project.`,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true,
+      },
+    },
+    async () => {
+      try {
+        // Instances rarely hold more than a page; walk pages anyway so none is hidden.
+        const queries: { id: number; name: string; is_public: boolean; project_id?: number }[] = [];
+        let total = 0;
+        do {
+          const data = await makeApiRequest<{
+            queries: { id: number; name: string; is_public: boolean; project_id?: number }[];
+            total_count: number;
+          }>(env, "/queries.json", "GET", undefined, { limit: 100, offset: queries.length });
+          const page = data.queries ?? [];
+          queries.push(...page);
+          total = data.total_count ?? queries.length;
+          if (!page.length) break;
+        } while (queries.length < total);
+
+        if (!queries.length) {
+          return { content: [{ type: "text", text: "No saved queries found." }] };
+        }
+
+        const lines = ["# Saved Queries\n", "| ID | Name | Public | Project ID |", "|---|---|---|---|"];
+        for (const q of queries) {
+          lines.push(`| ${q.id} | ${q.name} | ${q.is_public ? "Yes" : "No"} | ${q.project_id ?? "all projects"} |`);
+        }
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error) {
+        return { content: [{ type: "text", text: handleApiError(error) }] };
+      }
+    }
+  );
+
   // Get current user
   server.registerTool(
     "redmine_get_current_user",

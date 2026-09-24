@@ -70,6 +70,18 @@ function formatIssue(issue: RedmineIssue, fields?: string[]): string {
   return lines.join("\n");
 }
 
+/**
+ * How a stored relation reads from each side: [from issue_id, from issue_to_id].
+ * Redmine stores reverse kinds flipped, so only these five types come back.
+ */
+const RELATION_LABELS: Record<string, [string, string]> = {
+  relates: ["relates to", "relates to"],
+  duplicates: ["duplicates", "duplicated by"],
+  blocks: ["blocks", "blocked by"],
+  precedes: ["precedes", "follows"],
+  copied_to: ["copied to", "copied from"],
+};
+
 // Column definitions for list_issues table
 type ColumnDef = { header: string; render: (issue: RedmineIssue) => string };
 const LIST_COLUMNS: Record<string, ColumnDef> = {
@@ -177,6 +189,7 @@ Args:
   - parent_id: Filter by parent issue ID ("~" for root issues)
   - updated_on, created_on: Date filters (e.g., ">=2024-01-01")
   - sort: Sort (e.g., "updated_on:desc")
+  - query_id: Apply a saved query from redmine_list_queries (pass project_id too for a project query); explicit filters are added on top
   - view: "compact" (default, saves tokens: ID/Subject/Status/Priority/Assignee) or "full" (adds Tracker/Done)
   - fields: Override columns, e.g. ["id","subject","status","due_date"]. Available: id, tracker, subject, status, priority, assigned_to, done_ratio, project, updated_on, due_date, author
   - limit / offset: Pagination${userContext}`,
@@ -192,6 +205,7 @@ Args:
         created_on: z.string().optional().describe("Created date filter, e.g. '>=2024-01-01'"),
         parent_id: z.string().optional().describe("Filter by parent issue ID (e.g. '123' or '~' for root issues)"),
         sort: z.string().optional().describe("Sort field, e.g. 'updated_on:desc'"),
+        query_id: z.coerce.number().int().positive().optional().describe("Saved query ID from redmine_list_queries"),
         view: z.enum(["compact", "full"]).default("compact").describe("Output mode: compact (fewer columns) or full"),
         fields: z.array(z.string()).optional().describe("Custom columns to show, e.g. ['id','subject','status','due_date']"),
         limit: z.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Max results to return"),
@@ -221,6 +235,7 @@ Args:
         if (params.created_on) queryParams.created_on = params.created_on;
         if (params.parent_id) queryParams.parent_id = params.parent_id;
         if (params.sort) queryParams.sort = params.sort;
+        if (params.query_id != null) queryParams.query_id = params.query_id;
 
         const data = await makeApiRequest<IssuesResponse>(env, "/issues.json", "GET", undefined, queryParams);
         const issues = data.issues ?? [];
@@ -258,7 +273,8 @@ Args:
 Args:
   - issue_id: The issue ID (required)
   - include: Associations: "journals", "children", "relations", "attachments", "changesets", "watchers".
-    Include "attachments" to get the attachment IDs that redmine_download_attachment needs.
+    Include "attachments" to get the attachment IDs that redmine_download_attachment needs,
+    "relations" for relation IDs (redmine_delete_relation) and "watchers" for watcher user IDs.
   - view: "compact" (default: id, subject, status, priority, assignee, done, tracker, project) or "full" (all fields + description + custom_fields)
   - fields: Override view with specific fields, e.g. ["id","subject","status","custom_fields"]. Available: id, subject, project, tracker, status, priority, author, assigned_to, category, fixed_version, parent, start_date, due_date, done_ratio, estimated_hours, spent_hours, created_on, updated_on, closed_on, custom_fields, description`,
       inputSchema: {
@@ -300,12 +316,16 @@ Args:
         }
 
         // Append relations if included
+        // Each line reads from this issue's side and carries the relation ID that
+        // redmine_delete_relation needs.
         if (issue.relations?.length) {
           text += "\n\n### Relations\n";
           for (const rel of issue.relations) {
-            const otherId = rel.issue_id === issue.id ? rel.issue_to_id : rel.issue_id;
+            const outgoing = rel.issue_id === issue.id;
+            const otherId = outgoing ? rel.issue_to_id : rel.issue_id;
+            const label = RELATION_LABELS[rel.relation_type]?.[outgoing ? 0 : 1] ?? rel.relation_type;
             const delay = rel.delay ? ` (delay: ${rel.delay} days)` : "";
-            text += `- ${rel.relation_type} #${otherId}${delay}\n`;
+            text += `- [${rel.id}] ${label} #${otherId}${delay}\n`;
           }
         }
 
@@ -316,6 +336,12 @@ Args:
             const status = child.status ? ` [${child.status.name}]` : "";
             text += `- #${child.id}: ${child.subject} (${child.tracker.name})${status}\n`;
           }
+        }
+
+        // Append watchers if included; the IDs are what redmine_remove_watcher takes.
+        if (issue.watchers?.length) {
+          text += "\n\n### Watchers\n";
+          text += issue.watchers.map((w) => `- [${w.id}] ${w.name}`).join("\n") + "\n";
         }
 
         // Append attachments if included. The IDs matter as much as the names:

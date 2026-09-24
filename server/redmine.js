@@ -21816,6 +21816,13 @@ function formatIssue(issue2, fields) {
   }
   return lines.join("\n");
 }
+var RELATION_LABELS = {
+  relates: ["relates to", "relates to"],
+  duplicates: ["duplicates", "duplicated by"],
+  blocks: ["blocks", "blocked by"],
+  precedes: ["precedes", "follows"],
+  copied_to: ["copied to", "copied from"]
+};
 var LIST_COLUMNS = {
   id: { header: "ID", render: (i) => `#${i.id}` },
   tracker: { header: "Tracker", render: (i) => i.tracker.name },
@@ -21896,6 +21903,7 @@ Args:
   - parent_id: Filter by parent issue ID ("~" for root issues)
   - updated_on, created_on: Date filters (e.g., ">=2024-01-01")
   - sort: Sort (e.g., "updated_on:desc")
+  - query_id: Apply a saved query from redmine_list_queries (pass project_id too for a project query); explicit filters are added on top
   - view: "compact" (default, saves tokens: ID/Subject/Status/Priority/Assignee) or "full" (adds Tracker/Done)
   - fields: Override columns, e.g. ["id","subject","status","due_date"]. Available: id, tracker, subject, status, priority, assigned_to, done_ratio, project, updated_on, due_date, author
   - limit / offset: Pagination${userContext}`,
@@ -21911,6 +21919,7 @@ Args:
         created_on: external_exports.string().optional().describe("Created date filter, e.g. '>=2024-01-01'"),
         parent_id: external_exports.string().optional().describe("Filter by parent issue ID (e.g. '123' or '~' for root issues)"),
         sort: external_exports.string().optional().describe("Sort field, e.g. 'updated_on:desc'"),
+        query_id: external_exports.coerce.number().int().positive().optional().describe("Saved query ID from redmine_list_queries"),
         view: external_exports.enum(["compact", "full"]).default("compact").describe("Output mode: compact (fewer columns) or full"),
         fields: external_exports.array(external_exports.string()).optional().describe("Custom columns to show, e.g. ['id','subject','status','due_date']"),
         limit: external_exports.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Max results to return"),
@@ -21940,6 +21949,7 @@ Args:
         if (params.created_on) queryParams.created_on = params.created_on;
         if (params.parent_id) queryParams.parent_id = params.parent_id;
         if (params.sort) queryParams.sort = params.sort;
+        if (params.query_id != null) queryParams.query_id = params.query_id;
         const data = await makeApiRequest(env, "/issues.json", "GET", void 0, queryParams);
         const issues = data.issues ?? [];
         if (!issues.length) {
@@ -21972,7 +21982,8 @@ ${pagination}${nextInfo}`;
 Args:
   - issue_id: The issue ID (required)
   - include: Associations: "journals", "children", "relations", "attachments", "changesets", "watchers".
-    Include "attachments" to get the attachment IDs that redmine_download_attachment needs.
+    Include "attachments" to get the attachment IDs that redmine_download_attachment needs,
+    "relations" for relation IDs (redmine_delete_relation) and "watchers" for watcher user IDs.
   - view: "compact" (default: id, subject, status, priority, assignee, done, tracker, project) or "full" (all fields + description + custom_fields)
   - fields: Override view with specific fields, e.g. ["id","subject","status","custom_fields"]. Available: id, subject, project, tracker, status, priority, author, assigned_to, category, fixed_version, parent, start_date, due_date, done_ratio, estimated_hours, spent_hours, created_on, updated_on, closed_on, custom_fields, description`,
       inputSchema: {
@@ -22013,9 +22024,11 @@ ${journal.notes}`;
         if (issue2.relations?.length) {
           text += "\n\n### Relations\n";
           for (const rel of issue2.relations) {
-            const otherId = rel.issue_id === issue2.id ? rel.issue_to_id : rel.issue_id;
+            const outgoing = rel.issue_id === issue2.id;
+            const otherId = outgoing ? rel.issue_to_id : rel.issue_id;
+            const label = RELATION_LABELS[rel.relation_type]?.[outgoing ? 0 : 1] ?? rel.relation_type;
             const delay = rel.delay ? ` (delay: ${rel.delay} days)` : "";
-            text += `- ${rel.relation_type} #${otherId}${delay}
+            text += `- [${rel.id}] ${label} #${otherId}${delay}
 `;
           }
         }
@@ -22026,6 +22039,10 @@ ${journal.notes}`;
             text += `- #${child.id}: ${child.subject} (${child.tracker.name})${status}
 `;
           }
+        }
+        if (issue2.watchers?.length) {
+          text += "\n\n### Watchers\n";
+          text += issue2.watchers.map((w) => `- [${w.id}] ${w.name}`).join("\n") + "\n";
         }
         if (issue2.attachments?.length) {
           text += "\n\n### Attachments\n";
@@ -22936,6 +22953,47 @@ Returns: Table of activity IDs and names.`,
     }
   );
   server.registerTool(
+    "redmine_list_queries",
+    {
+      title: "List Redmine Saved Queries",
+      description: `List the saved issue queries visible to you (public ones and your own).
+Pass a query's ID as query_id to redmine_list_issues to reuse its filters; for a
+project query also pass its project_id.
+
+Returns: Table of query IDs, names, visibility and project.`,
+      inputSchema: {},
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async () => {
+      try {
+        const queries = [];
+        let total = 0;
+        do {
+          const data = await makeApiRequest(env, "/queries.json", "GET", void 0, { limit: 100, offset: queries.length });
+          const page = data.queries ?? [];
+          queries.push(...page);
+          total = data.total_count ?? queries.length;
+          if (!page.length) break;
+        } while (queries.length < total);
+        if (!queries.length) {
+          return { content: [{ type: "text", text: "No saved queries found." }] };
+        }
+        const lines = ["# Saved Queries\n", "| ID | Name | Public | Project ID |", "|---|---|---|---|"];
+        for (const q of queries) {
+          lines.push(`| ${q.id} | ${q.name} | ${q.is_public ? "Yes" : "No"} | ${q.project_id ?? "all projects"} |`);
+        }
+        return { content: [{ type: "text", text: lines.join("\n") }] };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+  server.registerTool(
     "redmine_get_current_user",
     {
       title: "Get Current Redmine User",
@@ -23557,6 +23615,248 @@ function registerPreferenceTools(server, env) {
   );
 }
 
+// src/redmine/tools/search.ts
+var SEARCH_TYPES = ["issues", "wiki_pages", "news", "documents", "changesets", "messages", "projects"];
+var SNIPPET_LENGTH = 160;
+function snippet(text) {
+  const flat = text.replace(/\s+/g, " ").replace(/\|/g, "\\|").trim();
+  return flat.length > SNIPPET_LENGTH ? `${flat.slice(0, SNIPPET_LENGTH)}\u2026` : flat || "\u2014";
+}
+function registerSearchTools(server, env) {
+  server.registerTool(
+    "redmine_search",
+    {
+      title: "Search Redmine",
+      description: `Full-text search across Redmine: issue descriptions and notes, wiki pages, news and more.
+Use this when the words may be anywhere in a ticket; redmine_list_issues(subject=...) only matches titles.
+
+Args:
+  - q: Search words (required)
+  - project_id: Limit to one project (and its subprojects unless scope says otherwise)
+  - scope: "all" (default), "my_projects", or "subprojects"
+  - types: Result kinds, default ["issues"]. Available: ${SEARCH_TYPES.join(", ")}
+  - all_words: Require every word (default true); false matches any word
+  - titles_only: Search titles only (default false)
+  - open_issues: Only open issues (default false)
+  - limit / offset: Pagination
+
+Returns: Table of hits with type, id, title and a snippet of the matching text.`,
+      inputSchema: {
+        q: external_exports.string().min(1).describe("Search words"),
+        project_id: external_exports.union([external_exports.string(), external_exports.number()]).optional().describe("Project ID or identifier"),
+        scope: external_exports.enum(["all", "my_projects", "subprojects"]).optional().describe("Search scope"),
+        types: external_exports.array(external_exports.enum(SEARCH_TYPES)).min(1).default(["issues"]).describe("Result kinds to include"),
+        all_words: external_exports.boolean().default(true).describe("Require all words"),
+        titles_only: external_exports.boolean().default(false).describe("Search titles only"),
+        open_issues: external_exports.boolean().default(false).describe("Only open issues"),
+        limit: external_exports.number().int().min(1).max(MAX_LIMIT).default(DEFAULT_LIMIT).describe("Max results"),
+        offset: external_exports.number().int().min(0).default(0).describe("Pagination offset")
+      },
+      annotations: {
+        readOnlyHint: true,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const queryParams = {
+          q: params.q,
+          all_words: params.all_words ? 1 : 0,
+          titles_only: params.titles_only ? 1 : 0,
+          limit: params.limit,
+          offset: params.offset
+        };
+        if (params.scope) queryParams.scope = params.scope;
+        if (params.open_issues) queryParams.open_issues = 1;
+        for (const type of params.types) queryParams[type] = 1;
+        const endpoint = params.project_id != null ? `/projects/${params.project_id}/search.json` : "/search.json";
+        const data = await makeApiRequest(env, endpoint, "GET", void 0, queryParams);
+        const results = data.results ?? [];
+        if (!results.length) {
+          return { content: [{ type: "text", text: `No results for "${params.q}".` }] };
+        }
+        const lines = ["| Type | ID | Title | Date | Snippet |", "|---|---|---|---|---|"];
+        for (const r of results) {
+          lines.push(`| ${r.type} | ${r.id} | ${snippet(r.title)} | ${r.datetime?.slice(0, 10) ?? "\u2014"} | ${snippet(r.description ?? "")} |`);
+        }
+        lines.push(`
+Showing ${results.length} of ${data.total_count} results (offset: ${data.offset})`);
+        if (data.total_count > data.offset + results.length) {
+          lines.push(`More results available. Use offset: ${data.offset + results.length}`);
+        }
+        let text = lines.join("\n");
+        if (text.length > CHARACTER_LIMIT) {
+          text = text.substring(0, CHARACTER_LIMIT) + "\n\n... (truncated, use smaller limit or add filters)";
+        }
+        return { content: [{ type: "text", text }] };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+}
+
+// src/redmine/tools/relations.ts
+var RELATION_TYPES = [
+  "relates",
+  "duplicates",
+  "duplicated",
+  "blocks",
+  "blocked",
+  "precedes",
+  "follows",
+  "copied_to",
+  "copied_from"
+];
+function registerRelationTools(server, env) {
+  server.registerTool(
+    "redmine_create_relation",
+    {
+      title: "Create Redmine Issue Relation",
+      description: `Link two issues.
+
+Args:
+  - issue_id: The issue the relation is read from
+  - issue_to_id: The other issue
+  - relation_type: ${RELATION_TYPES.join(", ")}.
+    Read as "issue_id <type> issue_to_id": blocks = issue_id must close before issue_to_id can;
+    blocked = issue_id waits for issue_to_id; precedes/follows = scheduling order.
+  - delay: Days between the two issues (precedes/follows only)
+
+Returns: The created relation with its ID (needed to delete it later).`,
+      inputSchema: {
+        issue_id: external_exports.coerce.number().int().positive().describe("Issue ID"),
+        issue_to_id: external_exports.coerce.number().int().positive().describe("Related issue ID"),
+        relation_type: external_exports.enum(RELATION_TYPES).describe("Relation type"),
+        delay: external_exports.coerce.number().int().optional().describe("Delay in days (precedes/follows only)")
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: false,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        const relation = {
+          issue_to_id: params.issue_to_id,
+          relation_type: params.relation_type
+        };
+        if (params.delay != null) relation.delay = params.delay;
+        const data = await makeApiRequest(
+          env,
+          `/issues/${params.issue_id}/relations.json`,
+          "POST",
+          { relation }
+        );
+        const r = data.relation;
+        return {
+          content: [{
+            type: "text",
+            text: `Relation ${r.id} created: #${r.issue_id} ${r.relation_type} #${r.issue_to_id}${r.delay ? ` (delay: ${r.delay} days)` : ""}.`
+          }]
+        };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+  server.registerTool(
+    "redmine_delete_relation",
+    {
+      title: "Delete Redmine Issue Relation",
+      description: `Remove a link between two issues. Irreversible \u2014 confirm with the user first.
+
+Args:
+  - relation_id: Relation ID, shown as [id] in redmine_get_issue(include="relations")
+
+Returns: Confirmation.`,
+      inputSchema: {
+        relation_id: external_exports.coerce.number().int().positive().describe("Relation ID")
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: true,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        await makeApiRequest(env, `/relations/${params.relation_id}.json`, "DELETE");
+        return { content: [{ type: "text", text: `Relation ${params.relation_id} deleted.` }] };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+  server.registerTool(
+    "redmine_add_watcher",
+    {
+      title: "Add Redmine Issue Watcher",
+      description: `Add a user as a watcher of an issue so they get its notifications without being assigned.
+
+Args:
+  - issue_id: Issue ID
+  - user_id: Numeric user ID (look it up via saved teammates, redmine_list_memberships or redmine_list_users)
+
+Returns: Confirmation.`,
+      inputSchema: {
+        issue_id: external_exports.coerce.number().int().positive().describe("Issue ID"),
+        user_id: external_exports.coerce.number().int().positive().describe("User ID")
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        await makeApiRequest(env, `/issues/${params.issue_id}/watchers.json`, "POST", { user_id: params.user_id });
+        return { content: [{ type: "text", text: `User ${params.user_id} is now watching #${params.issue_id}.` }] };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+  server.registerTool(
+    "redmine_remove_watcher",
+    {
+      title: "Remove Redmine Issue Watcher",
+      description: `Stop a user from watching an issue.
+
+Args:
+  - issue_id: Issue ID
+  - user_id: Numeric user ID, shown in redmine_get_issue(include="watchers")
+
+Returns: Confirmation.`,
+      inputSchema: {
+        issue_id: external_exports.coerce.number().int().positive().describe("Issue ID"),
+        user_id: external_exports.coerce.number().int().positive().describe("User ID")
+      },
+      annotations: {
+        readOnlyHint: false,
+        destructiveHint: false,
+        idempotentHint: true,
+        openWorldHint: true
+      }
+    },
+    async (params) => {
+      try {
+        await makeApiRequest(env, `/issues/${params.issue_id}/watchers/${params.user_id}.json`, "DELETE");
+        return { content: [{ type: "text", text: `User ${params.user_id} no longer watches #${params.issue_id}.` }] };
+      } catch (error2) {
+        return { content: [{ type: "text", text: handleApiError(error2) }] };
+      }
+    }
+  );
+}
+
 // src/redmine/server.ts
 function createServer(env, userState = { preferences: {} }) {
   const server = new McpServer({
@@ -23570,6 +23870,8 @@ function createServer(env, userState = { preferences: {} }) {
   registerLookupTools(server, env);
   registerAttachmentTools(server, env);
   registerPreferenceTools(server, env);
+  registerSearchTools(server, env);
+  registerRelationTools(server, env);
   return server;
 }
 

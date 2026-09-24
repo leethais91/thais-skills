@@ -27,6 +27,7 @@ export interface RedmineIssue {
   relations?: RedmineRelation[];
   custom_fields?: RedmineCustomField[];
   attachments?: RedmineAttachment[];
+  watchers?: RedmineRef[];
 }
 
 export interface RedmineRef {

@@ -11,6 +11,8 @@ import { registerTimeEntryTools } from "./tools/time_entries.js";
 import { registerLookupTools } from "./tools/lookups.js";
 import { registerAttachmentTools } from "./tools/attachments.js";
 import { registerPreferenceTools } from "./tools/preferences.js";
+import { registerSearchTools } from "./tools/search.js";
+import { registerRelationTools } from "./tools/relations.js";
 
 /**
  * Builds the server. `userState` carries the per-user preferences loaded from
@@ -34,6 +36,8 @@ export function createServer(env: RedmineEnv, userState: UserState = { preferenc
   registerLookupTools(server, env);
   registerAttachmentTools(server, env);
   registerPreferenceTools(server, env);
+  registerSearchTools(server, env);
+  registerRelationTools(server, env);
 
   return server;
 }
